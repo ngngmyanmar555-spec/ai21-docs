@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Project AI21 Document Editor Step 2 — professional workspace, Marker Instances and Free Text">
-  <title>Project AI21 — Document Editor Step 2</title>
+  <meta name="description" content="Project AI21 Document Editor Step 2 Stabilized — fully functional Marker Instances, Free Text and document workflow">
+  <title>Project AI21 — Step 2 Stabilized</title>
   <style>
     :root {
       --ink: #17213b;
@@ -302,6 +302,17 @@
     .page-media img { width: 100%; height: 100%; display: block; object-fit: contain; }
     .page-media iframe { pointer-events: none; }
     .blank-media { position: absolute; inset: 0; background: repeating-linear-gradient(0deg,#fff 0 39px,#f1f3f7 39px 40px); }
+    .layout-grid {
+      position: absolute; inset: 0; z-index: 2; pointer-events: none;
+      background-image:
+        linear-gradient(rgba(49,87,225,.15) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(49,87,225,.15) 1px, transparent 1px);
+      background-size: var(--grid-size) var(--grid-size);
+    }
+    .guide-line { position: absolute; z-index: 6; background: #e64980; touch-action: none; }
+    .guide-line.vertical { top: 0; bottom: 0; width: 1px; cursor: ew-resize; }
+    .guide-line.horizontal { left: 0; right: 0; height: 1px; cursor: ns-resize; }
+    .guide-line::after { content: ""; position: absolute; inset: -5px; }
     .marker-layer { position: absolute; inset: 0; z-index: 3; }
     .marker {
       position: absolute;
@@ -309,12 +320,12 @@
       top: var(--y);
       min-width: 110px;
       max-width: 70%;
-      padding: 9px 11px;
-      border: 1px solid rgba(49,87,225,.55);
-      border-radius: 7px;
+      padding: 0;
+      border: 1px dashed transparent;
+      border-radius: 3px;
       color: var(--ink);
-      background: rgba(255,255,255,.9);
-      box-shadow: 0 4px 13px rgba(23,33,59,.11);
+      background: transparent;
+      box-shadow: none;
       font-family: var(--font,inherit);
       font-size: var(--font-size,16px);
       line-height: 1.3;
@@ -325,8 +336,9 @@
       user-select: none;
     }
     .marker:active { cursor: grabbing; }
-    .marker.selected { outline: 3px solid rgba(49,87,225,.28); outline-offset: 2px; }
-    .marker.related { border-color: #f59f00; box-shadow: 0 0 0 3px rgba(245,159,0,.18); }
+    .marker:hover, .marker.selected { border-color: var(--blue); }
+    .marker.selected { outline: 2px solid rgba(49,87,225,.16); outline-offset: 1px; }
+    .marker.related { border-color: rgba(245,159,0,.65); }
     body[data-mode="fill"] .marker {
       border-color: transparent;
       background: transparent;
@@ -345,8 +357,37 @@
       cursor: nwse-resize;
       touch-action: none;
     }
-    .marker-name { display: block; margin-bottom: 3px; color: var(--blue); font-family:"Noto Sans Thai","Leelawadee UI",Tahoma,sans-serif; font-size: 10px; font-weight: 950; letter-spacing: .04em; text-transform: uppercase; }
-    .marker-value.empty { color: #98a2b3; font-style: italic; }
+    .rotation-handle {
+      position: absolute;
+      left: 50%;
+      top: -29px;
+      width: 16px;
+      height: 16px;
+      transform: translateX(-50%);
+      border: 2px solid white;
+      border-radius: 50%;
+      background: var(--blue);
+      box-shadow: 0 1px 5px rgba(23,33,59,.25);
+      cursor: grab;
+      touch-action: none;
+    }
+    .rotation-handle::after {
+      content: "";
+      position: absolute;
+      left: 5px;
+      top: 13px;
+      width: 2px;
+      height: 14px;
+      background: var(--blue);
+    }
+    .text-content { display: block; width: 100%; min-height: 1em; outline: 0; }
+    .text-content[contenteditable="true"] {
+      cursor: text;
+      user-select: text;
+      -webkit-user-select: text;
+    }
+    .object-editing { cursor: text !important; }
+    .marker-value.empty { min-height: 1em; }
     .page-number { position: absolute; right: 13px; bottom: 11px; z-index: 4; padding: 5px 9px; border-radius: 999px; color: white; background: rgba(23,33,59,.76); font-size: 10px; font-weight: 900; pointer-events: none; }
     .empty-stage { min-width: min(680px,calc(100vw - 470px)); min-height: 430px; display: grid; place-items: center; margin: auto; padding: 40px; border: 2px dashed #c2cad8; border-radius: 24px; color: var(--muted); text-align: center; }
     .empty-stage h1 { margin: 0 0 8px; color: var(--ink); font-size: 1.5rem; }
@@ -372,6 +413,8 @@
       .a4 { position: relative; width: 210mm; height: 297mm; transform: none !important; box-shadow: none; page-break-after: always; }
       .a4.selected { outline: 0; }
       .marker { border-color: transparent; box-shadow: none; background: transparent; }
+      .erase-region { border-color: transparent; outline: 0; }
+      .resize-handle, .rotation-handle { display: none !important; }
       .marker-name, .page-number { display: none; }
     }
 
@@ -521,7 +564,7 @@
       left: var(--x);
       top: var(--y);
       min-width: 60px;
-      padding: 3px 5px;
+      padding: 0;
       border: 1px dashed transparent;
       color: var(--ink);
       background: transparent;
@@ -535,23 +578,38 @@
       touch-action: none;
       user-select: none;
     }
-    .free-text:hover, .free-text.selected { border-color: var(--blue); background: rgba(255,255,255,.72); }
+    .free-text:hover, .free-text.selected { border-color: var(--blue); background: transparent; }
     body[data-mode="fill"] .free-text { pointer-events: none; border-color: transparent; background: transparent; }
-    .marker { text-align: var(--align,left); }
-    .marker.override::after {
-      content: "OVERRIDE";
+    .erase-region {
       position: absolute;
-      right: 3px;
-      top: 3px;
-      padding: 2px 4px;
-      border-radius: 4px;
-      color: white;
-      background: #f08c00;
-      font-family: Tahoma,sans-serif;
-      font-size: 8px;
-      font-weight: 900;
-      letter-spacing: .04em;
+      left: var(--x);
+      top: var(--y);
+      min-width: 4px;
+      min-height: 4px;
+      border: 1px dashed transparent;
+      transform-origin: center;
+      cursor: grab;
+      touch-action: none;
+      user-select: none;
     }
+    .erase-region:hover, .erase-region.selected {
+      border-color: #7c3aed;
+      outline: 2px solid rgba(124,58,237,.14);
+      outline-offset: 1px;
+    }
+    .erase-fill { position: absolute; inset: 0; pointer-events: none; }
+    .erase-region .resize-handle, .erase-region .rotation-handle { background: #7c3aed; }
+    .erase-region .rotation-handle::after { background: #7c3aed; }
+    .erase-draft {
+      position: absolute;
+      z-index: 10;
+      border: 1px dashed #7c3aed;
+      background: rgba(255,255,255,.72);
+      pointer-events: none;
+    }
+    body[data-mode="fill"] .erase-region { pointer-events: none; border-color: transparent; outline: 0; }
+    .marker { text-align: var(--align,left); }
+    .marker.override::after { display: none; }
     .toast {
       position: fixed;
       right: 330px;
@@ -589,7 +647,7 @@
         <span class="brand-mark">AI</span>
         <div>
           <div class="brand-name">PROJECT AI21</div>
-          <div class="brand-version">Document Editor · Step 2</div>
+          <div class="brand-version">Document Editor · Step 2 Stabilized</div>
         </div>
       </header>
 
@@ -671,6 +729,8 @@
           <button id="addMarkerButton" class="tool-button" type="button"><span class="tool-icon">M</span>Marker</button>
           <button id="addInstanceButton" class="tool-button" type="button"><span class="tool-icon">M+</span>Instance</button>
           <button id="freeTextToolButton" class="tool-button" type="button"><span class="tool-icon">T</span>Text</button>
+          <button id="eraseToolButton" class="tool-button" type="button"><span class="tool-icon">▱</span>Erase</button>
+          <button id="repairToolButton" class="tool-button" type="button"><span class="tool-icon">✦</span>Clean</button>
         </div>
         <div class="tool-group" aria-label="Text tools">
           <div class="toolbar-field"><label for="toolbarFontSelect">Font</label><select id="toolbarFontSelect"></select></div>
@@ -684,17 +744,23 @@
           <input id="fontFileInput" class="file-input" type="file" accept=".ttf,.otf,.woff,.woff2,font/*" multiple>
           <button id="localFontsButton" class="tool-button" type="button"><span class="tool-icon">▣</span>Local</button>
         </div>
+        <div class="tool-group" aria-label="Layout tools">
+          <button id="gridButton" class="tool-button" type="button"><span class="tool-icon">▦</span>Grid</button>
+          <button id="snapButton" class="tool-button" type="button"><span class="tool-icon">⌁</span>Snap</button>
+          <button id="guideVButton" class="tool-button" type="button"><span class="tool-icon">│</span>Guide</button>
+          <button id="guideHButton" class="tool-button" type="button"><span class="tool-icon">─</span>Guide</button>
+          <div class="toolbar-field"><label for="objectAlignSelect">Position</label><select id="objectAlignSelect" style="width:94px">
+            <option value="left">Left</option><option value="center">Center</option><option value="right">Right</option>
+            <option value="top">Top</option><option value="middle">Middle</option><option value="bottom">Bottom</option>
+          </select></div>
+          <button id="alignObjectButton" class="tool-button" type="button">Apply</button>
+          <button id="spaceHButton" class="tool-button" type="button">Space H</button>
+          <button id="spaceVButton" class="tool-button" type="button">Space V</button>
+        </div>
         <div class="tool-group" aria-label="View and export">
           <button id="fitButton" class="tool-button" type="button"><span class="tool-icon">⛶</span>Fit</button>
           <div class="zoom-box"><button id="zoomOutButton" type="button">−</button><span id="zoomValue" class="zoom-value">75%</span><button id="zoomInButton" type="button">＋</button></div>
           <button id="toolbarExportButton" class="primary" type="button">Export PDF</button>
-        </div>
-        <div class="tool-group" aria-label="Reserved modules">
-          <button class="tool-button" type="button" disabled title="Reserved for a later approved module">OCR</button>
-          <button class="tool-button" type="button" disabled title="Reserved for a later approved module">Scan</button>
-          <button class="tool-button" type="button" disabled title="Use Import for images in Step 2">Image</button>
-          <button class="tool-button" type="button" disabled title="Reserved for a later approved module">QR</button>
-          <button class="tool-button" type="button" disabled title="Reserved for a later approved module">Barcode</button>
         </div>
       </header>
       <div id="stage" class="stage"></div>
@@ -720,7 +786,7 @@
       <section id="instanceProperties" class="property-section" hidden>
         <h2 class="property-title">Instance override <span id="instanceBadge" class="badge">—</span></h2>
         <div id="instanceIdText" class="property-id"></div>
-        <div class="field"><label for="instanceValueInput">Value on this page only</label><textarea id="instanceValueInput" placeholder="Leave empty to use Marker value"></textarea></div>
+        <div class="field"><label for="instanceValueInput">Value on this page only</label><textarea id="instanceValueInput" placeholder="Edit this page only. Use Reset to follow the Marker again."></textarea></div>
         <div class="field"><label for="markerFontInput">Font on this Instance</label><select id="markerFontInput"></select></div>
         <div class="property-grid">
           <div class="field"><label for="instanceFontSizeInput">Size</label><input id="instanceFontSizeInput" type="number" min="6" max="240"></div>
@@ -754,6 +820,37 @@
         </div>
         <div class="button-grid"><button id="duplicateFreeTextButton" class="secondary" type="button">Duplicate</button><button id="deleteFreeTextButton" class="danger" type="button">Delete</button></div>
       </section>
+      <section id="eraseProperties" class="property-section" hidden>
+        <h2 class="property-title">Erase area</h2>
+        <div id="eraseIdText" class="property-id"></div>
+        <div class="property-grid">
+          <div class="field"><label for="eraseFillInput">Clean color</label><input id="eraseFillInput" type="color" value="#ffffff"></div>
+          <div class="field"><label for="eraseOpacityInput">Opacity %</label><input id="eraseOpacityInput" type="number" min="5" max="100" value="100"></div>
+          <div class="field"><label for="eraseXInput">X %</label><input id="eraseXInput" type="number" min="0" max="100" step=".1"></div>
+          <div class="field"><label for="eraseYInput">Y %</label><input id="eraseYInput" type="number" min="0" max="100" step=".1"></div>
+          <div class="field"><label for="eraseWidthInput">Width</label><input id="eraseWidthInput" type="number" min="4" max="794"></div>
+          <div class="field"><label for="eraseHeightInput">Height</label><input id="eraseHeightInput" type="number" min="4" max="1123"></div>
+          <div class="field"><label for="eraseRotationInput">Rotation</label><input id="eraseRotationInput" type="number" min="-180" max="180"></div>
+        </div>
+        <button id="sampleEraseColorButton" class="secondary full" type="button">Sample document color at center</button>
+        <p class="hint">Erase is non-destructive: it covers only the selected area and remains editable after Save/Open.</p>
+        <div class="button-grid"><button id="duplicateEraseButton" class="secondary" type="button">Duplicate</button><button id="deleteEraseButton" class="danger" type="button">Delete</button></div>
+      </section>
+      <section id="repairProperties" class="property-section" hidden>
+        <h2 class="property-title">Repair / Clean page</h2>
+        <div id="repairPageText" class="property-id"></div>
+        <div class="field"><label><input id="repairEnabledInput" type="checkbox"> Enable non-destructive cleanup</label></div>
+        <div class="field"><label><input id="repairGrayscaleInput" type="checkbox"> Convert scan to grayscale</label></div>
+        <div class="property-grid">
+          <div class="field"><label for="repairBrightnessInput">Brightness</label><input id="repairBrightnessInput" type="number" min="-50" max="50" value="0"></div>
+          <div class="field"><label for="repairContrastInput">Contrast</label><input id="repairContrastInput" type="number" min="-50" max="100" value="0"></div>
+          <div class="field"><label for="repairWhitePointInput">Clean near-white</label><input id="repairWhitePointInput" type="number" min="180" max="255" value="245"></div>
+          <div class="field"><label for="repairDespeckleInput">Remove dots</label><input id="repairDespeckleInput" type="number" min="0" max="8" value="0"></div>
+        </div>
+        <button id="applyRepairButton" class="primary full" type="button">Apply clean preview</button>
+        <button id="resetRepairButton" class="secondary full" type="button" style="margin-top:8px">Reset to original</button>
+        <p class="hint">The source asset is never modified. Settings are saved with this page and reproduced after Open and Export.</p>
+      </section>
     </aside>
   </main>
   <div id="toast" class="toast" hidden></div>
@@ -764,7 +861,7 @@
   <script>
     const STORAGE_KEY = "ai21-document-editor-v5-templates";
     const PROJECT_FORMAT = "ai21-project";
-    const PROJECT_VERSION = 4;
+    const PROJECT_VERSION = 5;
     const PAGE_WIDTH = 794;
     const PAGE_HEIGHT = 1123;
     pdfjsLib.GlobalWorkerOptions.workerSrc = "./vendor/pdfjs/pdf.worker.bundle.js";
@@ -806,6 +903,19 @@
     const freeTextHeightInput = $("#freeTextHeightInput");
     const freeTextRotationInput = $("#freeTextRotationInput");
     const freeTextAlignInput = $("#freeTextAlignInput");
+    const eraseFillInput = $("#eraseFillInput");
+    const eraseOpacityInput = $("#eraseOpacityInput");
+    const eraseXInput = $("#eraseXInput");
+    const eraseYInput = $("#eraseYInput");
+    const eraseWidthInput = $("#eraseWidthInput");
+    const eraseHeightInput = $("#eraseHeightInput");
+    const eraseRotationInput = $("#eraseRotationInput");
+    const repairEnabledInput = $("#repairEnabledInput");
+    const repairGrayscaleInput = $("#repairGrayscaleInput");
+    const repairBrightnessInput = $("#repairBrightnessInput");
+    const repairContrastInput = $("#repairContrastInput");
+    const repairWhitePointInput = $("#repairWhitePointInput");
+    const repairDespeckleInput = $("#repairDespeckleInput");
     const toolbarFontSelect = $("#toolbarFontSelect");
     const toolbarFontSizeInput = $("#toolbarFontSizeInput");
     const toolbarColorInput = $("#toolbarColorInput");
@@ -832,7 +942,10 @@
       selectedMarkerId: null,
       selectedInstanceId: null,
       selectedFreeTextId: null,
+      selectedEraseId: null,
+      repairPanelOpen: false,
       activeTool: "select",
+      layout: { gridEnabled: false, snapEnabled: true, gridSize: 20 },
       zoom: .75,
       nextPageId: 1,
       nextMarkerId: 1,
@@ -846,6 +959,9 @@
     let historyUndo = [];
     let historyRedo = [];
     let toastTimer = null;
+    let lastObjectActivation = { id: null, time: 0 };
+    let objectClipboard = null;
+    let clipboardPasteCount = 0;
 
     function loadTemplates() {
       try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
@@ -887,6 +1003,25 @@
       };
     }
 
+    function normalizeRepairSettings(settings = {}) {
+      return {
+        enabled: Boolean(settings.enabled),
+        grayscale: Boolean(settings.grayscale),
+        brightness: Math.min(50, Math.max(-50, Number(settings.brightness) || 0)),
+        contrast: Math.min(100, Math.max(-50, Number(settings.contrast) || 0)),
+        whitePoint: Math.min(255, Math.max(180, Number(settings.whitePoint) || 245)),
+        despeckle: Math.min(8, Math.max(0, Number(settings.despeckle) || 0))
+      };
+    }
+
+    function normalizeLayout(settings = {}) {
+      return {
+        gridEnabled: Boolean(settings.gridEnabled),
+        snapEnabled: settings.snapEnabled !== false,
+        gridSize: Math.min(100, Math.max(5, Number(settings.gridSize) || 20))
+      };
+    }
+
     function markerStyle(marker) {
       return normalizeTextStyle(marker?.style);
     }
@@ -908,6 +1043,62 @@
       return currentPage()?.freeTexts?.find(item => item.id === state.selectedFreeTextId) || null;
     }
 
+    function currentErase() {
+      return currentPage()?.erasures?.find(item => item.id === state.selectedEraseId) || null;
+    }
+
+    function deselectObjects(shouldRender = true) {
+      state.selectedMarkerId = null;
+      state.selectedInstanceId = null;
+      state.selectedFreeTextId = null;
+      state.selectedEraseId = null;
+      state.activeTool = "select";
+      state.repairPanelOpen = false;
+      if (shouldRender) render();
+    }
+
+    function isEditableTarget(target = document.activeElement) {
+      return Boolean(target?.matches?.("input, textarea, select, [contenteditable='true'], [contenteditable='plaintext-only']"));
+    }
+
+    function editablePlainText(element) {
+      return element.innerText.replace(/\r/g, "").replace(/\n$/, "");
+    }
+
+    function placeCaretAtEnd(element) {
+      const selection = window.getSelection();
+      const range = document.createRange();
+      range.selectNodeContents(element);
+      range.collapse(false);
+      selection.removeAllRanges();
+      selection.addRange(range);
+    }
+
+    function beginInlineEdit(container, content, onInput, onFinish) {
+      if (state.mode !== "design") return;
+      pushHistory();
+      container.classList.add("object-editing");
+      content.setAttribute("contenteditable", "plaintext-only");
+      content.spellcheck = false;
+      content.focus({ preventScroll: true });
+      placeCaretAtEnd(content);
+
+      const update = () => {
+        onInput(editablePlainText(content));
+        markDirty();
+      };
+      const finish = () => {
+        content.removeEventListener("input", update);
+        content.removeEventListener("blur", finish);
+        content.removeAttribute("contenteditable");
+        container.classList.remove("object-editing");
+        onFinish?.();
+        renderInspector();
+      };
+      content.addEventListener("input", update);
+      content.addEventListener("blur", finish);
+    }
+
     function showToast(message) {
       const toast = $("#toast");
       toast.textContent = message;
@@ -920,10 +1111,12 @@
       return structuredClone({
         markers: state.markers,
         pages: state.pages,
+        layout: state.layout,
         selectedPageId: state.selectedPageId,
         selectedMarkerId: state.selectedMarkerId,
         selectedInstanceId: state.selectedInstanceId,
-        selectedFreeTextId: state.selectedFreeTextId
+        selectedFreeTextId: state.selectedFreeTextId,
+        selectedEraseId: state.selectedEraseId
       });
     }
 
@@ -942,10 +1135,12 @@
     function restoreHistory(snapshot) {
       state.markers = snapshot.markers;
       state.pages = snapshot.pages;
+      state.layout = snapshot.layout || normalizeLayout();
       state.selectedPageId = snapshot.selectedPageId;
       state.selectedMarkerId = snapshot.selectedMarkerId;
       state.selectedInstanceId = snapshot.selectedInstanceId;
       state.selectedFreeTextId = snapshot.selectedFreeTextId;
+      state.selectedEraseId = snapshot.selectedEraseId;
       markDirty();
       render();
     }
@@ -1196,6 +1391,91 @@
       }
     }
 
+    async function processDocumentImage(dataUrl, settings, maxDimension = 2200) {
+      const image = await loadImage(dataUrl);
+      const scale = Math.min(1, maxDimension / Math.max(image.width, image.height));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(image.width * scale));
+      canvas.height = Math.max(1, Math.round(image.height * scale));
+      const context = canvas.getContext("2d", { alpha: false, willReadFrequently: true });
+      context.fillStyle = "#ffffff";
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+      const pixels = imageData.data;
+      const brightness = settings.brightness * 2.55;
+      const contrast = settings.contrast;
+      const factor = (259 * (contrast + 255)) / (255 * (259 - contrast));
+
+      for (let index = 0; index < pixels.length; index += 4) {
+        let red = pixels[index];
+        let green = pixels[index + 1];
+        let blue = pixels[index + 2];
+        if (settings.grayscale) {
+          const gray = .299 * red + .587 * green + .114 * blue;
+          red = green = blue = gray;
+        }
+        red = factor * (red - 128) + 128 + brightness;
+        green = factor * (green - 128) + 128 + brightness;
+        blue = factor * (blue - 128) + 128 + brightness;
+        if (red >= settings.whitePoint && green >= settings.whitePoint && blue >= settings.whitePoint) {
+          red = green = blue = 255;
+        }
+        pixels[index] = Math.min(255, Math.max(0, red));
+        pixels[index + 1] = Math.min(255, Math.max(0, green));
+        pixels[index + 2] = Math.min(255, Math.max(0, blue));
+      }
+
+      if (settings.despeckle > 0 && canvas.width > 2 && canvas.height > 2) {
+        const source = new Uint8ClampedArray(pixels);
+        const width = canvas.width;
+        const height = canvas.height;
+        const isDark = offset => (
+          .299 * source[offset] + .587 * source[offset + 1] + .114 * source[offset + 2]
+        ) < 115;
+        for (let y = 1; y < height - 1; y++) {
+          for (let x = 1; x < width - 1; x++) {
+            const offset = (y * width + x) * 4;
+            if (!isDark(offset)) continue;
+            let darkNeighbors = 0;
+            for (let dy = -1; dy <= 1; dy++) {
+              for (let dx = -1; dx <= 1; dx++) {
+                if (!dx && !dy) continue;
+                if (isDark(((y + dy) * width + x + dx) * 4)) darkNeighbors++;
+              }
+            }
+            if (darkNeighbors <= settings.despeckle) {
+              pixels[offset] = pixels[offset + 1] = pixels[offset + 2] = 255;
+            }
+          }
+        }
+      }
+
+      context.putImageData(imageData, 0, 0);
+      return canvas.toDataURL("image/png");
+    }
+
+    async function refreshPageRepair(page, shouldRender = true) {
+      if (!page?.repair?.enabled || !page.url) {
+        if (page) page.processedUrl = "";
+        if (shouldRender) renderBoard();
+        return;
+      }
+      setProjectMessage(`Cleaning ${page.name}...`);
+      page.processedUrl = await processDocumentImage(page.url, page.repair);
+      setProjectMessage(`Clean preview ready: ${page.name}`);
+      if (shouldRender) {
+        renderBoard();
+        renderPageList();
+      }
+    }
+
+    async function hydrateProjectRepairs() {
+      for (const page of state.pages) {
+        if (page.repair?.enabled && page.url) await refreshPageRepair(page, false);
+      }
+    }
+
     function safeProjectFileName(name) {
       const safe = (name || "Untitled Project")
         .replace(/[<>:"/\\|?*\u0000-\u001f]/g, "-")
@@ -1215,12 +1495,14 @@
           markers: state.markers,
           assets: state.assets,
           fonts: state.fonts,
+          layout: state.layout,
           pages: state.pages.map(page => {
             const savedPage = { ...page };
             if (page.assetId) {
               delete savedPage.url;
               delete savedPage.thumbnail;
             }
+            delete savedPage.processedUrl;
             return savedPage;
           })
         }
@@ -1379,6 +1661,16 @@
           freeTexts: Array.isArray(page.freeTexts)
             ? page.freeTexts.map(text => createFreeText(pageId, text))
             : [],
+          erasures: Array.isArray(page.erasures)
+            ? page.erasures.map(erase => createErase(pageId, erase))
+            : [],
+          repair: normalizeRepairSettings(page.repair),
+          guides: Array.isArray(page.guides) ? page.guides.map(guide => ({
+            id: guide.id || uniqueId("guide"),
+            orientation: guide.orientation === "horizontal" ? "horizontal" : "vertical",
+            position: Math.min(100, Math.max(0, Number(guide.position) || 50))
+          })) : [],
+          processedUrl: "",
           future: page.future || { textLayer: [], exportSettings: {} }
         };
       });
@@ -1394,6 +1686,7 @@
         fonts: Array.isArray(project.fonts)
           ? project.fonts.filter(font => font && font.name && font.family)
           : [],
+        layout: normalizeLayout(project.layout),
         pages
       };
     }
@@ -1409,12 +1702,15 @@
         state.pages = project.pages;
         state.assets = project.assets;
         state.fonts = project.fonts;
+        state.layout = project.layout;
         state.zoom = project.zoom;
         state.selectedPageId = state.pages[0]?.id || null;
         state.selectedMarkerId = state.markers[0]?.id || null;
         state.selectedInstanceId = state.pages[0]?.instances[0]?.id || null;
         state.selectedFreeTextId = null;
+        state.selectedEraseId = null;
         state.activeTool = "select";
+        state.repairPanelOpen = false;
         state.nextPageId = maxNumericId(state.pages, "page") + 1;
         state.nextMarkerId = Math.max(0, ...state.markers.map(marker => Number(marker.number) || 0)) + 1;
         state.nextAssetId = maxNumericId(
@@ -1430,6 +1726,7 @@
 
         await hydrateProjectFonts();
         await hydrateProjectMedia();
+        await hydrateProjectRepairs();
         setProjectMessage(`เปิด ${file.name} สำเร็จ`);
         render();
       } catch (error) {
@@ -1515,6 +1812,20 @@
       };
     }
 
+    function createErase(pageId, overrides = {}) {
+      return {
+        id: overrides.id || uniqueId("erase"),
+        pageId,
+        x: Number(overrides.x ?? 10),
+        y: Number(overrides.y ?? 10),
+        width: Math.min(PAGE_WIDTH, Math.max(4, Number(overrides.width) || 120)),
+        height: Math.min(PAGE_HEIGHT, Math.max(4, Number(overrides.height) || 44)),
+        rotation: Number(overrides.rotation || 0),
+        fill: /^#[0-9a-f]{6}$/i.test(overrides.fill || "") ? overrides.fill : "#ffffff",
+        opacity: Math.min(1, Math.max(.05, Number(overrides.opacity) || 1))
+      };
+    }
+
     function createPage(overrides = {}) {
       const id = overrides.id || `page-${state.nextPageId++}`;
       return {
@@ -1531,6 +1842,14 @@
           instance
         )),
         freeTexts: (overrides.freeTexts || []).map(text => createFreeText(id, text)),
+        erasures: (overrides.erasures || []).map(erase => createErase(id, erase)),
+        repair: normalizeRepairSettings(overrides.repair),
+        guides: (overrides.guides || []).map(guide => ({
+          id: guide.id || uniqueId("guide"),
+          orientation: guide.orientation === "horizontal" ? "horizontal" : "vertical",
+          position: Math.min(100, Math.max(0, Number(guide.position) || 50))
+        })),
+        processedUrl: "",
         future: { textLayer: [], exportSettings: {} }
       };
     }
@@ -1554,13 +1873,10 @@
     function selectPage(id, scroll = false) {
       if (!state.pages.some(page => page.id === id)) return;
       state.selectedPageId = id;
-      const page = currentPage();
-      if (!page.instances.some(instance => instance.id === state.selectedInstanceId)) {
-        state.selectedInstanceId = null;
-      }
-      if (!page.freeTexts.some(text => text.id === state.selectedFreeTextId)) {
-        state.selectedFreeTextId = null;
-      }
+      state.selectedMarkerId = null;
+      state.selectedInstanceId = null;
+      state.selectedFreeTextId = null;
+      state.selectedEraseId = null;
       render();
       if (scroll) document.querySelector(`.page-wrap[data-page-id="${id}"]`)?.scrollIntoView({ behavior: "smooth", block: "center" });
     }
@@ -1570,6 +1886,8 @@
       state.selectedMarkerId = id;
       state.selectedInstanceId = null;
       state.selectedFreeTextId = null;
+      state.selectedEraseId = null;
+      state.repairPanelOpen = false;
       renderMarkerList();
       renderInspector();
       renderBoard();
@@ -1587,6 +1905,8 @@
       state.selectedInstanceId = id;
       state.selectedMarkerId = instance.markerId;
       state.selectedFreeTextId = null;
+      state.selectedEraseId = null;
+      state.repairPanelOpen = false;
       renderMarkerList();
       renderInspector();
       renderBoard();
@@ -1598,6 +1918,21 @@
       state.selectedFreeTextId = id;
       state.selectedInstanceId = null;
       state.selectedMarkerId = null;
+      state.selectedEraseId = null;
+      state.repairPanelOpen = false;
+      renderMarkerList();
+      renderInspector();
+      renderBoard();
+    }
+
+    function selectErase(id) {
+      const erase = currentPage()?.erasures.find(item => item.id === id);
+      if (!erase) return;
+      state.selectedEraseId = id;
+      state.selectedFreeTextId = null;
+      state.selectedInstanceId = null;
+      state.selectedMarkerId = null;
+      state.repairPanelOpen = false;
       renderMarkerList();
       renderInspector();
       renderBoard();
@@ -1642,6 +1977,7 @@
         state.selectedPageId = lastPage.id;
         state.selectedInstanceId = null;
         state.selectedFreeTextId = null;
+        state.selectedEraseId = null;
         markDirty();
       }
       render();
@@ -1654,6 +1990,7 @@
       state.selectedPageId = page.id;
       state.selectedInstanceId = null;
       state.selectedFreeTextId = null;
+      state.selectedEraseId = null;
       markDirty();
       render();
     }
@@ -1666,6 +2003,8 @@
         thumbnail: source.thumbnail,
         assetId: source.assetId,
         pdfPageNumber: source.pdfPageNumber,
+        repair: source.repair,
+        guides: source.guides,
         instances: source.instances.map(instance => ({
           ...instance,
           id: undefined,
@@ -1673,6 +2012,11 @@
         })),
         freeTexts: source.freeTexts.map(text => ({
           ...text,
+          id: undefined,
+          pageId: undefined
+        })),
+        erasures: source.erasures.map(erase => ({
+          ...erase,
           id: undefined,
           pageId: undefined
         }))
@@ -1741,6 +2085,7 @@
       state.selectedMarkerId = marker.id;
       state.selectedInstanceId = null;
       state.selectedFreeTextId = null;
+      state.selectedEraseId = null;
       markDirty();
       render();
     }
@@ -1802,6 +2147,7 @@
       page.instances.push(instance);
       state.selectedInstanceId = instance.id;
       state.selectedFreeTextId = null;
+      state.selectedEraseId = null;
       markDirty();
       render();
       warnDuplicates(marker.id);
@@ -1820,6 +2166,7 @@
       });
       page.instances.push(instance);
       state.selectedInstanceId = instance.id;
+      state.selectedEraseId = null;
       markDirty();
       render();
       warnDuplicates(instance.markerId);
@@ -1832,6 +2179,7 @@
       pushHistory();
       page.instances.splice(index, 1);
       state.selectedInstanceId = null;
+      state.selectedEraseId = null;
       markDirty();
       render();
     }
@@ -1853,6 +2201,7 @@
       state.selectedMarkerId = state.markers[index]?.id || state.markers[index - 1]?.id || null;
       state.selectedInstanceId = null;
       state.selectedFreeTextId = null;
+      state.selectedEraseId = null;
       markDirty();
       render();
     }
@@ -1908,9 +2257,11 @@
       state.selectedFreeTextId = text.id;
       state.selectedInstanceId = null;
       state.selectedMarkerId = null;
+      state.selectedEraseId = null;
       state.activeTool = "select";
       markDirty();
       render();
+      showToast("Free Text added — double-click it to edit");
       requestAnimationFrame(() => freeTextValueInput.select());
     }
 
@@ -1949,6 +2300,294 @@
       render();
     }
 
+    function activateEraseTool() {
+      if (state.mode !== "design") setMode("design");
+      state.activeTool = state.activeTool === "erase" ? "select" : "erase";
+      $("#eraseToolButton").classList.toggle("active", state.activeTool === "erase");
+      showToast(state.activeTool === "erase"
+        ? "Drag across the document area you want to erase"
+        : "Erase tool cancelled");
+    }
+
+    function beginEraseDraw(event, paper, layer, page) {
+      event.preventDefault();
+      event.stopPropagation();
+      state.selectedPageId = page.id;
+      deselectObjects(false);
+      state.activeTool = "erase";
+      const rect = paper.getBoundingClientRect();
+      const startX = Math.min(rect.right, Math.max(rect.left, event.clientX));
+      const startY = Math.min(rect.bottom, Math.max(rect.top, event.clientY));
+      const draft = document.createElement("div");
+      draft.className = "erase-draft";
+      layer.appendChild(draft);
+      paper.setPointerCapture(event.pointerId);
+      let bounds = null;
+
+      const move = moveEvent => {
+        const currentX = Math.min(rect.right, Math.max(rect.left, moveEvent.clientX));
+        const currentY = Math.min(rect.bottom, Math.max(rect.top, moveEvent.clientY));
+        const left = Math.min(startX, currentX);
+        const top = Math.min(startY, currentY);
+        const width = Math.abs(currentX - startX);
+        const height = Math.abs(currentY - startY);
+        bounds = {
+          x: ((left - rect.left) / rect.width) * 100,
+          y: ((top - rect.top) / rect.height) * 100,
+          width: width / state.zoom,
+          height: height / state.zoom
+        };
+        draft.style.left = `${(left - rect.left) / state.zoom}px`;
+        draft.style.top = `${(top - rect.top) / state.zoom}px`;
+        draft.style.width = `${bounds.width}px`;
+        draft.style.height = `${bounds.height}px`;
+      };
+
+      const finish = () => {
+        paper.removeEventListener("pointermove", move);
+        paper.removeEventListener("pointerup", finish);
+        paper.removeEventListener("pointercancel", finish);
+        draft.remove();
+        if (bounds && bounds.width >= 4 && bounds.height >= 4) {
+          pushHistory();
+          const erase = createErase(page.id, bounds);
+          page.erasures.push(erase);
+          state.selectedEraseId = erase.id;
+          state.activeTool = "select";
+          markDirty();
+          render();
+          showToast("Erase area added — it remains editable after Save/Open");
+        } else {
+          state.activeTool = "select";
+          renderInspector();
+          showToast("Drag a larger area to erase");
+        }
+      };
+
+      paper.addEventListener("pointermove", move);
+      paper.addEventListener("pointerup", finish);
+      paper.addEventListener("pointercancel", finish);
+    }
+
+    function duplicateErase() {
+      const source = currentErase();
+      const page = currentPage();
+      if (!source || !page) return;
+      pushHistory();
+      const erase = createErase(page.id, {
+        ...source,
+        id: undefined,
+        pageId: undefined,
+        x: Math.min(96, source.x + 2.5),
+        y: Math.min(97, source.y + 2.5)
+      });
+      page.erasures.push(erase);
+      state.selectedEraseId = erase.id;
+      markDirty();
+      render();
+    }
+
+    function deleteErase() {
+      const page = currentPage();
+      const index = page?.erasures.findIndex(erase => erase.id === state.selectedEraseId) ?? -1;
+      if (index < 0) return;
+      pushHistory();
+      page.erasures.splice(index, 1);
+      state.selectedEraseId = null;
+      markDirty();
+      render();
+    }
+
+    function colorToHex(red, green, blue) {
+      return `#${[red, green, blue].map(value => value.toString(16).padStart(2, "0")).join("")}`;
+    }
+
+    async function sampleEraseColor() {
+      const erase = currentErase();
+      const page = currentPage();
+      if (!erase || !page) return;
+      let color = "#ffffff";
+      if (page.url) {
+        const canvas = document.createElement("canvas");
+        canvas.width = PAGE_WIDTH;
+        canvas.height = PAGE_HEIGHT;
+        const context = canvas.getContext("2d", { alpha: false });
+        context.fillStyle = "#ffffff";
+        context.fillRect(0, 0, PAGE_WIDTH, PAGE_HEIGHT);
+        const image = await loadImage(page.url);
+        const scale = Math.min(PAGE_WIDTH / image.width, PAGE_HEIGHT / image.height);
+        const width = image.width * scale;
+        const height = image.height * scale;
+        context.drawImage(image, (PAGE_WIDTH - width) / 2, (PAGE_HEIGHT - height) / 2, width, height);
+        const x = Math.min(PAGE_WIDTH - 1, Math.max(0, Math.round((erase.x / 100) * PAGE_WIDTH + erase.width / 2)));
+        const y = Math.min(PAGE_HEIGHT - 1, Math.max(0, Math.round((erase.y / 100) * PAGE_HEIGHT + erase.height / 2)));
+        const [red, green, blue] = context.getImageData(x, y, 1, 1).data;
+        color = colorToHex(red, green, blue);
+      }
+      pushHistory();
+      erase.fill = color;
+      erase.opacity = 1;
+      markDirty();
+      render();
+      showToast(`Sampled document color ${color}`);
+    }
+
+    function activateRepairPanel() {
+      if (!currentPage()?.url) {
+        showToast("Select an imported PDF or image page first");
+        return;
+      }
+      const shouldOpen = !state.repairPanelOpen;
+      deselectObjects(false);
+      state.repairPanelOpen = shouldOpen;
+      render();
+    }
+
+    async function applyRepair() {
+      const page = currentPage();
+      if (!page?.url) return;
+      pushHistory();
+      page.repair = normalizeRepairSettings({
+        enabled: repairEnabledInput.checked,
+        grayscale: repairGrayscaleInput.checked,
+        brightness: repairBrightnessInput.value,
+        contrast: repairContrastInput.value,
+        whitePoint: repairWhitePointInput.value,
+        despeckle: repairDespeckleInput.value
+      });
+      markDirty();
+      await refreshPageRepair(page);
+      renderInspector();
+      showToast(page.repair.enabled ? "Page cleanup applied" : "Cleanup disabled");
+    }
+
+    function resetRepair() {
+      const page = currentPage();
+      if (!page) return;
+      pushHistory();
+      page.repair = normalizeRepairSettings();
+      page.processedUrl = "";
+      markDirty();
+      render();
+      state.repairPanelOpen = true;
+      renderInspector();
+      showToast("Original page restored");
+    }
+
+    function copySelectedObject() {
+      const instance = currentInstance();
+      const text = currentFreeText();
+      const erase = currentErase();
+      if (instance) {
+        objectClipboard = {
+          type: "instance",
+          data: structuredClone(instance)
+        };
+      } else if (text) {
+        objectClipboard = {
+          type: "freeText",
+          data: structuredClone(text)
+        };
+      } else if (erase) {
+        objectClipboard = {
+          type: "erase",
+          data: structuredClone(erase)
+        };
+      } else {
+        showToast("Select an object before copying");
+        return false;
+      }
+      clipboardPasteCount = 0;
+      showToast(`${objectClipboard.type === "instance" ? "Instance" : objectClipboard.type === "freeText" ? "Free Text" : "Erase area"} copied`);
+      return true;
+    }
+
+    function pasteSelectedObject() {
+      const page = currentPage();
+      if (!page || !objectClipboard) {
+        showToast(objectClipboard ? "Select a page before pasting" : "Nothing has been copied");
+        return;
+      }
+      pushHistory();
+      clipboardPasteCount += 1;
+      const offset = Math.min(15, clipboardPasteCount * 2.5);
+      if (objectClipboard.type === "instance") {
+        const source = objectClipboard.data;
+        const marker = state.markers.find(item => item.id === source.markerId);
+        if (!marker) {
+          showToast("The copied Instance no longer has a Marker");
+          historyUndo.pop();
+          updateHistoryButtons();
+          return;
+        }
+        const instance = createInstance(marker.id, page.id, {
+          ...source,
+          id: undefined,
+          pageId: undefined,
+          x: Math.min(96, source.x + offset),
+          y: Math.min(97, source.y + offset)
+        });
+        page.instances.push(instance);
+        state.selectedMarkerId = marker.id;
+        state.selectedInstanceId = instance.id;
+        state.selectedFreeTextId = null;
+        state.selectedEraseId = null;
+        warnDuplicates(marker.id);
+      } else if (objectClipboard.type === "freeText") {
+        const source = objectClipboard.data;
+        const text = createFreeText(page.id, {
+          ...source,
+          id: undefined,
+          pageId: undefined,
+          x: Math.min(96, source.x + offset),
+          y: Math.min(97, source.y + offset)
+        });
+        page.freeTexts.push(text);
+        state.selectedMarkerId = null;
+        state.selectedInstanceId = null;
+        state.selectedFreeTextId = text.id;
+        state.selectedEraseId = null;
+      } else {
+        const source = objectClipboard.data;
+        const erase = createErase(page.id, {
+          ...source,
+          id: undefined,
+          pageId: undefined,
+          x: Math.min(96, source.x + offset),
+          y: Math.min(97, source.y + offset)
+        });
+        page.erasures.push(erase);
+        state.selectedMarkerId = null;
+        state.selectedInstanceId = null;
+        state.selectedFreeTextId = null;
+        state.selectedEraseId = erase.id;
+      }
+      markDirty();
+      render();
+    }
+
+    function deleteSelectedObject() {
+      if (currentInstance()) {
+        deleteInstance();
+        return true;
+      }
+      if (currentFreeText()) {
+        deleteFreeText();
+        return true;
+      }
+      if (currentErase()) {
+        deleteErase();
+        return true;
+      }
+      return false;
+    }
+
+    function cutSelectedObject() {
+      if (!copySelectedObject()) return;
+      deleteSelectedObject();
+      showToast(`${objectClipboard.type === "instance" ? "Instance" : objectClipboard.type === "freeText" ? "Free Text" : "Erase area"} cut`);
+    }
+
     function newProject(force = false) {
       if (!force && state.dirty && !window.confirm("สร้างโปรเจกต์ใหม่และละทิ้งการเปลี่ยนแปลงที่ยังไม่ได้บันทึกหรือไม่?")) return false;
       state.projectName = "Untitled Project";
@@ -1961,7 +2600,10 @@
       state.selectedMarkerId = null;
       state.selectedInstanceId = null;
       state.selectedFreeTextId = null;
+      state.selectedEraseId = null;
+      state.repairPanelOpen = false;
       state.activeTool = "select";
+      state.layout = normalizeLayout();
       state.zoom = .75;
       state.nextPageId = 1;
       state.nextMarkerId = 1;
@@ -1989,7 +2631,9 @@
         pages: state.pages.map(page => ({
           name: page.name,
           instances: page.instances.map(instance => ({ ...instance, id: undefined, pageId: undefined })),
-          freeTexts: page.freeTexts.map(text => ({ ...text, id: undefined, pageId: undefined }))
+          freeTexts: page.freeTexts.map(text => ({ ...text, id: undefined, pageId: undefined })),
+          erasures: page.erasures.map(erase => ({ ...erase, id: undefined, pageId: undefined })),
+          guides: structuredClone(page.guides || [])
         }))
       };
     }
@@ -2026,7 +2670,9 @@
           ...instance,
           markerId: idMap.get(instance.markerId)
         })),
-        freeTexts: page.freeTexts || []
+        freeTexts: page.freeTexts || [],
+        erasures: page.erasures || [],
+        guides: page.guides || []
       }));
       state.selectedPageId = state.pages[0]?.id || null;
       state.selectedMarkerId = state.markers[0]?.id || null;
@@ -2214,18 +2860,22 @@
       const marker = currentMarker();
       const instance = currentInstance();
       const freeText = currentFreeText();
-      const hasMarkerSelection = Boolean(marker && !instance && !freeText);
-      const hasInstanceSelection = Boolean(instance && !freeText);
+      const erase = currentErase();
+      const repairOpen = state.repairPanelOpen && Boolean(currentPage());
+      const hasMarkerSelection = Boolean(marker && !instance && !freeText && !erase && !repairOpen);
+      const hasInstanceSelection = Boolean(instance && !freeText && !erase && !repairOpen);
       const resolvedStyle = instance ? resolvedInstanceStyle(instance, marker) : null;
       const defaultStyle = markerStyle(marker);
       document.body.dataset.mode = state.mode;
       renderFontControls();
 
-      $("#propertiesEmpty").hidden = hasMarkerSelection || hasInstanceSelection || Boolean(freeText);
+      $("#propertiesEmpty").hidden = hasMarkerSelection || hasInstanceSelection || Boolean(freeText) || Boolean(erase) || repairOpen;
       $("#markerProperties").hidden = !hasMarkerSelection;
       $("#instanceProperties").hidden = !hasInstanceSelection;
       $("#freeTextProperties").hidden = !freeText;
-      $("#selectionTypeBadge").textContent = freeText ? "Free Text" : instance ? "Instance" : marker ? "Marker" : "None";
+      $("#eraseProperties").hidden = !erase;
+      $("#repairProperties").hidden = !repairOpen;
+      $("#selectionTypeBadge").textContent = repairOpen ? "Page Clean" : erase ? "Erase" : freeText ? "Free Text" : instance ? "Instance" : marker ? "Marker" : "None";
 
       markerNameInput.value = marker?.name || "";
       markerValueInput.value = marker?.value || "";
@@ -2260,6 +2910,24 @@
       freeTextRotationInput.value = freeText?.rotation || 0;
       $("#freeTextIdText").textContent = freeText ? `ID: ${freeText.id}` : "";
 
+      eraseFillInput.value = erase?.fill || "#ffffff";
+      eraseOpacityInput.value = erase ? Math.round(erase.opacity * 100) : 100;
+      eraseXInput.value = erase ? Number(erase.x).toFixed(1) : "";
+      eraseYInput.value = erase ? Number(erase.y).toFixed(1) : "";
+      eraseWidthInput.value = erase?.width || "";
+      eraseHeightInput.value = erase?.height || "";
+      eraseRotationInput.value = erase?.rotation || 0;
+      $("#eraseIdText").textContent = erase ? `ID: ${erase.id}` : "";
+
+      const repair = normalizeRepairSettings(currentPage()?.repair);
+      repairEnabledInput.checked = repair.enabled;
+      repairGrayscaleInput.checked = repair.grayscale;
+      repairBrightnessInput.value = repair.brightness;
+      repairContrastInput.value = repair.contrast;
+      repairWhitePointInput.value = repair.whitePoint;
+      repairDespeckleInput.value = repair.despeckle;
+      $("#repairPageText").textContent = currentPage() ? `Page: ${currentPage().name}` : "";
+
       const toolbarStyle = freeText
         ? normalizeTextStyle(freeText)
         : instance
@@ -2273,11 +2941,15 @@
       $("#addMarkerButton").disabled = state.mode !== "design";
       $("#addInstanceButton").disabled = state.mode !== "design" || !marker || !currentPage();
       $("#freeTextToolButton").disabled = state.mode !== "design";
+      $("#eraseToolButton").disabled = state.mode !== "design" || !currentPage();
+      $("#repairToolButton").disabled = !currentPage()?.url;
       designPanel.hidden = state.mode !== "design";
       fillPanel.hidden = state.mode !== "fill";
       $("#toolbarDesignButton").classList.toggle("active", state.mode === "design");
       $("#toolbarFillButton").classList.toggle("active", state.mode === "fill");
       $("#freeTextToolButton").classList.toggle("active", state.activeTool === "text");
+      $("#eraseToolButton").classList.toggle("active", state.activeTool === "erase");
+      $("#repairToolButton").classList.toggle("active", repairOpen);
       renderFillFields();
     }
 
@@ -2286,7 +2958,7 @@
       media.className = "page-media";
       if (page.type === "image" || page.type === "pdf") {
         const image = document.createElement("img");
-        image.src = page.url;
+        image.src = page.processedUrl || page.url;
         image.alt = page.name;
         media.appendChild(image);
       } else {
@@ -2295,15 +2967,62 @@
       return media;
     }
 
+    function isDoubleObjectActivation(id) {
+      const now = performance.now();
+      const isDouble = lastObjectActivation.id === id && now - lastObjectActivation.time < 430;
+      lastObjectActivation = { id, time: now };
+      return isDouble;
+    }
+
+    function editInstanceInline(element, instance) {
+      const marker = state.markers.find(item => item.id === instance.markerId);
+      const content = element.querySelector(".text-content");
+      if (!marker || !content) return;
+      state.selectedMarkerId = marker.id;
+      state.selectedInstanceId = instance.id;
+      state.selectedFreeTextId = null;
+      state.selectedEraseId = null;
+      beginInlineEdit(
+        element,
+        content,
+        value => {
+          instance.overrideValue = value;
+          content.classList.toggle("empty", value === "");
+        },
+        () => renderBoard()
+      );
+    }
+
+    function editFreeTextInline(element, text) {
+      const content = element.querySelector(".text-content");
+      if (!content) return;
+      state.selectedMarkerId = null;
+      state.selectedInstanceId = null;
+      state.selectedFreeTextId = text.id;
+      state.selectedEraseId = null;
+      beginInlineEdit(
+        element,
+        content,
+        value => { text.value = value; },
+        () => renderBoard()
+      );
+    }
+
     function enableInstanceDrag(element, page, instance) {
       element.addEventListener("pointerdown", event => {
-        if (state.mode !== "design" || event.target.classList.contains("resize-handle")) return;
+        if (state.mode !== "design") return;
+        if (element.classList.contains("object-editing") || event.target.isContentEditable) {
+          event.stopPropagation();
+          return;
+        }
+        if (event.target.closest(".resize-handle,.rotation-handle")) return;
         event.stopPropagation();
         state.selectedPageId = page.id;
+        state.repairPanelOpen = false;
         state.selectedMarkerId = instance.markerId;
         state.selectedInstanceId = instance.id;
         state.selectedFreeTextId = null;
-        pushHistory();
+        state.selectedEraseId = null;
         element.setPointerCapture(event.pointerId);
 
         const paper = element.closest(".a4");
@@ -2311,12 +3030,18 @@
         const markerRect = element.getBoundingClientRect();
         const grabX = event.clientX - markerRect.left;
         const grabY = event.clientY - markerRect.top;
+        let moved = false;
 
         const move = moveEvent => {
-          const x = ((moveEvent.clientX - rect.left - grabX) / rect.width) * 100;
-          const y = ((moveEvent.clientY - rect.top - grabY) / rect.height) * 100;
-          instance.x = Math.min(96, Math.max(0, x));
-          instance.y = Math.min(97, Math.max(0, y));
+          if (!moved) {
+            pushHistory();
+            moved = true;
+          }
+          const snapped = snapPosition(page,
+            ((moveEvent.clientX - rect.left - grabX) / rect.width) * 100,
+            ((moveEvent.clientY - rect.top - grabY) / rect.height) * 100);
+          instance.x = Math.min(96, Math.max(0, snapped.x));
+          instance.y = Math.min(97, Math.max(0, snapped.y));
           element.style.setProperty("--x", `${instance.x}%`);
           element.style.setProperty("--y", `${instance.y}%`);
         };
@@ -2325,11 +3050,11 @@
           element.removeEventListener("pointermove", move);
           element.removeEventListener("pointerup", finish);
           element.removeEventListener("pointercancel", finish);
-          markDirty();
-          renderPageList();
+          if (moved) markDirty();
           renderMarkerList();
           renderInspector();
-          warnDuplicates(instance.markerId);
+          if (moved) renderBoard();
+          if (moved) warnDuplicates(instance.markerId);
         };
 
         element.addEventListener("pointermove", move);
@@ -2337,7 +3062,7 @@
         element.addEventListener("pointercancel", finish);
         renderMarkerList();
         renderInspector();
-        document.querySelectorAll(".marker").forEach(item => {
+        document.querySelectorAll(".marker,.free-text,.erase-region").forEach(item => {
           item.classList.toggle("selected", item.dataset.instanceId === instance.id);
           item.classList.toggle(
             "related",
@@ -2345,6 +3070,27 @@
             item.dataset.instanceId !== instance.id
           );
         });
+        document.querySelectorAll(".marker .resize-handle,.marker .rotation-handle,.free-text .resize-handle,.free-text .rotation-handle,.erase-region .resize-handle,.erase-region .rotation-handle").forEach(handle => {
+          if (!element.contains(handle)) handle.remove();
+        });
+        if (!element.querySelector(".resize-handle")) {
+          const handle = document.createElement("span");
+          handle.className = "resize-handle";
+          element.appendChild(handle);
+          enableInstanceResize(handle, element, instance);
+        }
+        if (!element.querySelector(".rotation-handle")) {
+          const rotationHandle = document.createElement("span");
+          rotationHandle.className = "rotation-handle";
+          rotationHandle.title = "Drag to rotate";
+          element.appendChild(rotationHandle);
+          enableObjectRotation(rotationHandle, element, instance, () => warnDuplicates(instance.markerId));
+        }
+      });
+      element.addEventListener("dblclick", event => {
+        event.preventDefault();
+        event.stopPropagation();
+        setTimeout(() => editInstanceInline(element, instance), 0);
       });
     }
 
@@ -2355,7 +3101,7 @@
         state.selectedMarkerId = instance.markerId;
         state.selectedInstanceId = instance.id;
         state.selectedFreeTextId = null;
-        pushHistory();
+        state.selectedEraseId = null;
         renderMarkerList();
         renderInspector();
         handle.setPointerCapture(event.pointerId);
@@ -2363,8 +3109,13 @@
         const startY = event.clientY;
         const startWidth = instance.width;
         const startHeight = instance.height;
+        let moved = false;
 
         const move = moveEvent => {
+          if (!moved) {
+            pushHistory();
+            moved = true;
+          }
           instance.width = Math.min(760, Math.max(40, startWidth + (moveEvent.clientX - startX) / state.zoom));
           instance.height = Math.min(300, Math.max(28, startHeight + (moveEvent.clientY - startY) / state.zoom));
           element.style.width = `${instance.width}px`;
@@ -2374,9 +3125,10 @@
           handle.removeEventListener("pointermove", move);
           handle.removeEventListener("pointerup", finish);
           handle.removeEventListener("pointercancel", finish);
-          markDirty();
+          if (moved) markDirty();
           renderInspector();
-          warnDuplicates(instance.markerId);
+          if (moved) renderBoard();
+          if (moved) warnDuplicates(instance.markerId);
         };
         handle.addEventListener("pointermove", move);
         handle.addEventListener("pointerup", finish);
@@ -2386,13 +3138,19 @@
 
     function enableFreeTextDrag(element, page, text) {
       element.addEventListener("pointerdown", event => {
-        if (state.mode !== "design" || event.target.classList.contains("resize-handle")) return;
+        if (state.mode !== "design") return;
+        if (element.classList.contains("object-editing") || event.target.isContentEditable) {
+          event.stopPropagation();
+          return;
+        }
+        if (event.target.closest(".resize-handle,.rotation-handle")) return;
         event.stopPropagation();
         state.selectedPageId = page.id;
+        state.repairPanelOpen = false;
         state.selectedFreeTextId = text.id;
         state.selectedInstanceId = null;
         state.selectedMarkerId = null;
-        pushHistory();
+        state.selectedEraseId = null;
         element.setPointerCapture(event.pointerId);
 
         const paper = element.closest(".a4");
@@ -2400,9 +3158,17 @@
         const textRect = element.getBoundingClientRect();
         const grabX = event.clientX - textRect.left;
         const grabY = event.clientY - textRect.top;
+        let moved = false;
         const move = moveEvent => {
-          text.x = Math.min(96, Math.max(0, ((moveEvent.clientX - rect.left - grabX) / rect.width) * 100));
-          text.y = Math.min(97, Math.max(0, ((moveEvent.clientY - rect.top - grabY) / rect.height) * 100));
+          if (!moved) {
+            pushHistory();
+            moved = true;
+          }
+          const snapped = snapPosition(page,
+            ((moveEvent.clientX - rect.left - grabX) / rect.width) * 100,
+            ((moveEvent.clientY - rect.top - grabY) / rect.height) * 100);
+          text.x = Math.min(96, Math.max(0, snapped.x));
+          text.y = Math.min(97, Math.max(0, snapped.y));
           element.style.setProperty("--x", `${text.x}%`);
           element.style.setProperty("--y", `${text.y}%`);
         };
@@ -2410,16 +3176,38 @@
           element.removeEventListener("pointermove", move);
           element.removeEventListener("pointerup", finish);
           element.removeEventListener("pointercancel", finish);
-          markDirty();
+          if (moved) markDirty();
           renderInspector();
+          if (moved) renderBoard();
         };
         element.addEventListener("pointermove", move);
         element.addEventListener("pointerup", finish);
         element.addEventListener("pointercancel", finish);
         renderInspector();
-        document.querySelectorAll(".marker,.free-text").forEach(item => {
+        document.querySelectorAll(".marker,.free-text,.erase-region").forEach(item => {
           item.classList.toggle("selected", item.dataset.freeTextId === text.id);
         });
+        document.querySelectorAll(".marker .resize-handle,.marker .rotation-handle,.free-text .resize-handle,.free-text .rotation-handle,.erase-region .resize-handle,.erase-region .rotation-handle").forEach(handle => {
+          if (!element.contains(handle)) handle.remove();
+        });
+        if (!element.querySelector(".resize-handle")) {
+          const handle = document.createElement("span");
+          handle.className = "resize-handle";
+          element.appendChild(handle);
+          enableFreeTextResize(handle, element, text);
+        }
+        if (!element.querySelector(".rotation-handle")) {
+          const rotationHandle = document.createElement("span");
+          rotationHandle.className = "rotation-handle";
+          rotationHandle.title = "Drag to rotate";
+          element.appendChild(rotationHandle);
+          enableObjectRotation(rotationHandle, element, text);
+        }
+      });
+      element.addEventListener("dblclick", event => {
+        event.preventDefault();
+        event.stopPropagation();
+        setTimeout(() => editFreeTextInline(element, text), 0);
       });
     }
 
@@ -2430,13 +3218,18 @@
         state.selectedFreeTextId = text.id;
         state.selectedInstanceId = null;
         state.selectedMarkerId = null;
-        pushHistory();
+        state.selectedEraseId = null;
         handle.setPointerCapture(event.pointerId);
         const startX = event.clientX;
         const startY = event.clientY;
         const startWidth = text.width;
         const startHeight = text.height;
+        let moved = false;
         const move = moveEvent => {
+          if (!moved) {
+            pushHistory();
+            moved = true;
+          }
           text.width = Math.min(760, Math.max(40, startWidth + (moveEvent.clientX - startX) / state.zoom));
           text.height = Math.min(500, Math.max(24, startHeight + (moveEvent.clientY - startY) / state.zoom));
           element.style.width = `${text.width}px`;
@@ -2446,13 +3239,238 @@
           handle.removeEventListener("pointermove", move);
           handle.removeEventListener("pointerup", finish);
           handle.removeEventListener("pointercancel", finish);
-          markDirty();
+          if (moved) markDirty();
           renderInspector();
+          renderBoard();
         };
         handle.addEventListener("pointermove", move);
         handle.addEventListener("pointerup", finish);
         handle.addEventListener("pointercancel", finish);
         renderInspector();
+      });
+    }
+
+    function enableEraseDrag(element, page, erase) {
+      element.addEventListener("pointerdown", event => {
+        if (state.mode !== "design" || state.activeTool !== "select") return;
+        if (event.target.closest(".resize-handle,.rotation-handle")) return;
+        event.stopPropagation();
+        state.selectedPageId = page.id;
+        state.repairPanelOpen = false;
+        state.selectedEraseId = erase.id;
+        state.selectedFreeTextId = null;
+        state.selectedInstanceId = null;
+        state.selectedMarkerId = null;
+        element.setPointerCapture(event.pointerId);
+        const paper = element.closest(".a4");
+        const rect = paper.getBoundingClientRect();
+        const eraseRect = element.getBoundingClientRect();
+        const grabX = event.clientX - eraseRect.left;
+        const grabY = event.clientY - eraseRect.top;
+        let moved = false;
+
+        const move = moveEvent => {
+          if (!moved) {
+            pushHistory();
+            moved = true;
+          }
+          const snapped = snapPosition(page,
+            ((moveEvent.clientX - rect.left - grabX) / rect.width) * 100,
+            ((moveEvent.clientY - rect.top - grabY) / rect.height) * 100);
+          erase.x = Math.min(99, Math.max(0, snapped.x));
+          erase.y = Math.min(99, Math.max(0, snapped.y));
+          element.style.setProperty("--x", `${erase.x}%`);
+          element.style.setProperty("--y", `${erase.y}%`);
+        };
+        const finish = () => {
+          element.removeEventListener("pointermove", move);
+          element.removeEventListener("pointerup", finish);
+          element.removeEventListener("pointercancel", finish);
+          if (moved) markDirty();
+          renderInspector();
+          renderBoard();
+        };
+        element.addEventListener("pointermove", move);
+        element.addEventListener("pointerup", finish);
+        element.addEventListener("pointercancel", finish);
+        renderInspector();
+        document.querySelectorAll(".marker,.free-text,.erase-region").forEach(item => {
+          item.classList.toggle("selected", item.dataset.eraseId === erase.id);
+        });
+      });
+    }
+
+    function enableEraseResize(handle, element, erase) {
+      handle.addEventListener("pointerdown", event => {
+        if (state.mode !== "design") return;
+        event.stopPropagation();
+        state.selectedEraseId = erase.id;
+        state.selectedFreeTextId = null;
+        state.selectedInstanceId = null;
+        state.selectedMarkerId = null;
+        handle.setPointerCapture(event.pointerId);
+        const startX = event.clientX;
+        const startY = event.clientY;
+        const startWidth = erase.width;
+        const startHeight = erase.height;
+        let moved = false;
+        const move = moveEvent => {
+          if (!moved) {
+            pushHistory();
+            moved = true;
+          }
+          erase.width = Math.min(PAGE_WIDTH, Math.max(4, startWidth + (moveEvent.clientX - startX) / state.zoom));
+          erase.height = Math.min(PAGE_HEIGHT, Math.max(4, startHeight + (moveEvent.clientY - startY) / state.zoom));
+          element.style.width = `${erase.width}px`;
+          element.style.height = `${erase.height}px`;
+        };
+        const finish = () => {
+          handle.removeEventListener("pointermove", move);
+          handle.removeEventListener("pointerup", finish);
+          handle.removeEventListener("pointercancel", finish);
+          if (moved) markDirty();
+          renderInspector();
+          renderBoard();
+        };
+        handle.addEventListener("pointermove", move);
+        handle.addEventListener("pointerup", finish);
+        handle.addEventListener("pointercancel", finish);
+      });
+    }
+
+    function enableObjectRotation(handle, element, object, onFinish) {
+      handle.addEventListener("pointerdown", event => {
+        if (state.mode !== "design") return;
+        event.stopPropagation();
+        handle.setPointerCapture(event.pointerId);
+        const rect = element.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+        const startAngle = Math.atan2(event.clientY - centerY, event.clientX - centerX);
+        const startRotation = Number(object.rotation) || 0;
+        let moved = false;
+
+        const move = moveEvent => {
+          if (!moved) {
+            pushHistory();
+            moved = true;
+          }
+          const angle = Math.atan2(moveEvent.clientY - centerY, moveEvent.clientX - centerX);
+          object.rotation = Math.round(startRotation + ((angle - startAngle) * 180) / Math.PI);
+          element.style.transform = `rotate(${object.rotation}deg)`;
+        };
+        const finish = () => {
+          handle.removeEventListener("pointermove", move);
+          handle.removeEventListener("pointerup", finish);
+          handle.removeEventListener("pointercancel", finish);
+          if (moved) markDirty();
+          onFinish?.();
+          renderInspector();
+          renderBoard();
+        };
+        handle.addEventListener("pointermove", move);
+        handle.addEventListener("pointerup", finish);
+        handle.addEventListener("pointercancel", finish);
+      });
+    }
+
+    function selectedObjectInfo() {
+      const page = currentPage();
+      if (!page) return null;
+      if (currentInstance()) return { page, object: currentInstance(), collection: page.instances, type: "instance" };
+      if (currentFreeText()) return { page, object: currentFreeText(), collection: page.freeTexts, type: "text" };
+      if (currentErase()) return { page, object: currentErase(), collection: page.erasures, type: "erase" };
+      return null;
+    }
+
+    function snapPosition(page, x, y) {
+      if (!state.layout.snapEnabled) return { x, y };
+      const grid = state.layout.gridSize;
+      let px = x / 100 * PAGE_WIDTH;
+      let py = y / 100 * PAGE_HEIGHT;
+      px = Math.round(px / grid) * grid;
+      py = Math.round(py / grid) * grid;
+      const tolerance = 7;
+      (page.guides || []).forEach(guide => {
+        const target = guide.position / 100 * (guide.orientation === "vertical" ? PAGE_WIDTH : PAGE_HEIGHT);
+        if (guide.orientation === "vertical" && Math.abs(px - target) <= tolerance) px = target;
+        if (guide.orientation === "horizontal" && Math.abs(py - target) <= tolerance) py = target;
+      });
+      return { x: px / PAGE_WIDTH * 100, y: py / PAGE_HEIGHT * 100 };
+    }
+
+    function alignSelectedObject(position) {
+      const info = selectedObjectInfo();
+      if (!info) return showToast("Select an object first");
+      pushHistory();
+      const { object } = info;
+      if (position === "left") object.x = 0;
+      if (position === "center") object.x = Math.max(0, (PAGE_WIDTH - object.width) / 2 / PAGE_WIDTH * 100);
+      if (position === "right") object.x = Math.max(0, (PAGE_WIDTH - object.width) / PAGE_WIDTH * 100);
+      if (position === "top") object.y = 0;
+      if (position === "middle") object.y = Math.max(0, (PAGE_HEIGHT - object.height) / 2 / PAGE_HEIGHT * 100);
+      if (position === "bottom") object.y = Math.max(0, (PAGE_HEIGHT - object.height) / PAGE_HEIGHT * 100);
+      markDirty();
+      renderInspector();
+      renderBoard();
+    }
+
+    function distributeSelectedType(axis) {
+      const info = selectedObjectInfo();
+      if (!info || info.collection.length < 3) return showToast("Need at least 3 objects of this type");
+      pushHistory();
+      const size = axis === "x" ? PAGE_WIDTH : PAGE_HEIGHT;
+      const items = [...info.collection].sort((a, b) => a[axis] - b[axis]);
+      const first = items[0][axis] / 100 * size;
+      const last = items.at(-1)[axis] / 100 * size;
+      const step = (last - first) / (items.length - 1);
+      items.forEach((item, index) => item[axis] = (first + step * index) / size * 100);
+      markDirty();
+      renderInspector();
+      renderBoard();
+    }
+
+    function addGuide(orientation) {
+      const page = currentPage();
+      if (!page) return showToast("Add or import a page first");
+      pushHistory();
+      page.guides.push({ id: uniqueId("guide"), orientation, position: 50 });
+      markDirty();
+      renderBoard();
+    }
+
+    function enableGuideDrag(element, page, guide) {
+      element.addEventListener("pointerdown", event => {
+        if (state.mode !== "design") return;
+        event.preventDefault();
+        event.stopPropagation();
+        pushHistory();
+        element.setPointerCapture(event.pointerId);
+        const paper = element.closest(".a4");
+        const move = moveEvent => {
+          const rect = paper.getBoundingClientRect();
+          guide.position = guide.orientation === "vertical"
+            ? (moveEvent.clientX - rect.left) / rect.width * 100
+            : (moveEvent.clientY - rect.top) / rect.height * 100;
+          guide.position = Math.min(100, Math.max(0, guide.position));
+          element.style[guide.orientation === "vertical" ? "left" : "top"] = `${guide.position}%`;
+        };
+        const finish = () => {
+          element.removeEventListener("pointermove", move);
+          element.removeEventListener("pointerup", finish);
+          element.removeEventListener("pointercancel", finish);
+          markDirty();
+        };
+        element.addEventListener("pointermove", move);
+        element.addEventListener("pointerup", finish);
+        element.addEventListener("pointercancel", finish);
+      });
+      element.addEventListener("dblclick", event => {
+        event.stopPropagation();
+        pushHistory();
+        page.guides = page.guides.filter(item => item.id !== guide.id);
+        markDirty();
+        renderBoard();
       });
     }
 
@@ -2479,7 +3497,27 @@
         paper.className = `a4${page.id === state.selectedPageId ? " selected" : ""}`;
         paper.style.transform = `scale(${state.zoom})`;
         paper.appendChild(mediaFor(page));
+        if (state.mode === "design" && state.layout.gridEnabled) {
+          const grid = document.createElement("div");
+          grid.className = "layout-grid";
+          grid.style.setProperty("--grid-size", `${state.layout.gridSize}px`);
+          paper.appendChild(grid);
+        }
+        if (state.mode === "design") {
+          (page.guides || []).forEach(guide => {
+            const line = document.createElement("div");
+            line.className = `guide-line ${guide.orientation}`;
+            line.style[guide.orientation === "vertical" ? "left" : "top"] = `${guide.position}%`;
+            line.title = "Drag guide · double-click to remove";
+            enableGuideDrag(line, page, guide);
+            paper.appendChild(line);
+          });
+        }
         paper.addEventListener("pointerdown", event => {
+          if (state.mode === "design" && state.activeTool === "erase") {
+            beginEraseDraw(event, paper, layer, page);
+            return;
+          }
           if (state.mode === "design" && state.activeTool === "text") {
             event.preventDefault();
             const rect = paper.getBoundingClientRect();
@@ -2494,6 +3532,38 @@
         const layer = document.createElement("div");
         layer.className = "marker-layer";
         layer.dataset.futureTextLayer = "true";
+
+        page.erasures.forEach(erase => {
+          const element = document.createElement("div");
+          const isSelected = erase.id === state.selectedEraseId;
+          element.className = `erase-region${isSelected ? " selected" : ""}`;
+          element.dataset.eraseId = erase.id;
+          element.style.setProperty("--x", `${erase.x}%`);
+          element.style.setProperty("--y", `${erase.y}%`);
+          element.style.width = `${erase.width}px`;
+          element.style.height = `${erase.height}px`;
+          element.style.transform = `rotate(${erase.rotation}deg)`;
+          element.style.pointerEvents = state.mode === "design" && state.activeTool === "select" ? "auto" : "none";
+          element.title = "Erase area";
+          const fill = document.createElement("span");
+          fill.className = "erase-fill";
+          fill.style.backgroundColor = erase.fill;
+          fill.style.opacity = erase.opacity;
+          element.appendChild(fill);
+          if (state.mode === "design" && isSelected) {
+            const handle = document.createElement("span");
+            handle.className = "resize-handle";
+            element.appendChild(handle);
+            enableEraseResize(handle, element, erase);
+            const rotationHandle = document.createElement("span");
+            rotationHandle.className = "rotation-handle";
+            rotationHandle.title = "Drag to rotate";
+            element.appendChild(rotationHandle);
+            enableObjectRotation(rotationHandle, element, erase);
+          }
+          enableEraseDrag(element, page, erase);
+          layer.appendChild(element);
+        });
 
         page.instances.forEach(instance => {
           const marker = state.markers.find(item => item.id === instance.markerId);
@@ -2517,23 +3587,22 @@
           element.style.height = `${instance.height}px`;
           element.style.color = style.color;
           element.style.transform = `rotate(${instance.rotation}deg)`;
-          element.style.pointerEvents = state.mode === "design" ? "auto" : "none";
-
-          if (state.mode === "design") {
-            const name = document.createElement("span");
-            name.className = "marker-name";
-            name.textContent = `${instanceDisplayNumber(instance)} · ${marker.name}`;
-            element.appendChild(name);
-          }
+          element.style.pointerEvents = state.mode === "design" && state.activeTool !== "erase" ? "auto" : "none";
+          element.title = `${instanceDisplayNumber(instance)} · ${marker.name}${hasOverride ? " · Override" : ""}`;
           const value = document.createElement("span");
-          value.className = `marker-value${displayValue ? "" : " empty"}`;
-          value.textContent = displayValue || "ยังไม่มีข้อมูล";
+          value.className = `marker-value text-content${displayValue ? "" : " empty"}`;
+          value.textContent = displayValue;
           element.appendChild(value);
-          if (state.mode === "design") {
+          if (state.mode === "design" && isSelected) {
             const handle = document.createElement("span");
             handle.className = "resize-handle";
             element.appendChild(handle);
             enableInstanceResize(handle, element, instance);
+            const rotationHandle = document.createElement("span");
+            rotationHandle.className = "rotation-handle";
+            rotationHandle.title = "Drag to rotate";
+            element.appendChild(rotationHandle);
+            enableObjectRotation(rotationHandle, element, instance, () => warnDuplicates(instance.markerId));
           }
           enableInstanceDrag(element, page, instance);
           layer.appendChild(element);
@@ -2552,13 +3621,21 @@
           element.style.color = text.color;
           element.style.textAlign = text.align;
           element.style.transform = `rotate(${text.rotation}deg)`;
-          element.style.pointerEvents = state.mode === "design" ? "auto" : "none";
-          element.textContent = text.value || "Free text";
-          if (state.mode === "design") {
+          element.style.pointerEvents = state.mode === "design" && state.activeTool !== "erase" ? "auto" : "none";
+          const content = document.createElement("span");
+          content.className = "text-content";
+          content.textContent = text.value;
+          element.appendChild(content);
+          if (state.mode === "design" && text.id === state.selectedFreeTextId) {
             const handle = document.createElement("span");
             handle.className = "resize-handle";
             element.appendChild(handle);
             enableFreeTextResize(handle, element, text);
+            const rotationHandle = document.createElement("span");
+            rotationHandle.className = "rotation-handle";
+            rotationHandle.title = "Drag to rotate";
+            element.appendChild(rotationHandle);
+            enableObjectRotation(rotationHandle, element, text);
           }
           enableFreeTextDrag(element, page, text);
           layer.appendChild(element);
@@ -2584,6 +3661,11 @@
       $("#deletePageButton").disabled = !page;
       $("#moveUpButton").disabled = index <= 0;
       $("#moveDownButton").disabled = index < 0 || index >= state.pages.length - 1;
+      $("#gridButton").classList.toggle("active", state.layout.gridEnabled);
+      $("#snapButton").classList.toggle("active", state.layout.snapEnabled);
+      $("#alignObjectButton").disabled = !selectedObjectInfo();
+      $("#spaceHButton").disabled = !selectedObjectInfo();
+      $("#spaceVButton").disabled = !selectedObjectInfo();
     }
 
     function render() {
@@ -2591,6 +3673,7 @@
       if (state.selectedMarkerId && !currentMarker()) state.selectedMarkerId = state.markers[0]?.id || null;
       if (state.selectedInstanceId && !currentInstance()) state.selectedInstanceId = null;
       if (state.selectedFreeTextId && !currentFreeText()) state.selectedFreeTextId = null;
+      if (state.selectedEraseId && !currentErase()) state.selectedEraseId = null;
       assetCount.textContent = Object.keys(state.assets).length;
       renderPageList();
       renderMarkerList();
@@ -2607,6 +3690,7 @@
       if (state.mode === "fill") {
         state.selectedInstanceId = null;
         state.selectedFreeTextId = null;
+        state.selectedEraseId = null;
       }
       markDirty();
       render();
@@ -2656,13 +3740,25 @@
       context.fillStyle = "#ffffff";
       context.fillRect(0, 0, PAGE_WIDTH, PAGE_HEIGHT);
 
-      if (page.url) {
-        const background = await loadImage(page.url);
+      if (page.processedUrl || page.url) {
+        const background = await loadImage(page.processedUrl || page.url);
         const scale = Math.min(PAGE_WIDTH / background.width, PAGE_HEIGHT / background.height);
         const width = background.width * scale;
         const height = background.height * scale;
         context.drawImage(background, (PAGE_WIDTH - width) / 2, (PAGE_HEIGHT - height) / 2, width, height);
       }
+
+      page.erasures.forEach(erase => {
+        const x = (erase.x / 100) * PAGE_WIDTH;
+        const y = (erase.y / 100) * PAGE_HEIGHT;
+        context.save();
+        context.translate(x + erase.width / 2, y + erase.height / 2);
+        context.rotate((erase.rotation * Math.PI) / 180);
+        context.globalAlpha = erase.opacity;
+        context.fillStyle = erase.fill;
+        context.fillRect(-erase.width / 2, -erase.height / 2, erase.width, erase.height);
+        context.restore();
+      });
 
       page.instances.forEach(instance => {
         const marker = state.markers.find(item => item.id === instance.markerId);
@@ -2671,18 +3767,20 @@
         const x = (instance.x / 100) * PAGE_WIDTH;
         const y = (instance.y / 100) * PAGE_HEIGHT;
         context.save();
-        context.translate(x, y);
+        context.translate(x + instance.width / 2, y + instance.height / 2);
         context.rotate((instance.rotation * Math.PI) / 180);
         context.fillStyle = style.color;
         context.font = `${style.fontSize}px ${style.fontFamily === "inherit" ? '"Noto Sans Thai","Leelawadee UI",Tahoma,sans-serif' : style.fontFamily}`;
         context.textAlign = style.align;
         context.textBaseline = "top";
-        const textX = style.align === "center" ? instance.width / 2 : style.align === "right" ? instance.width : 0;
+        const textX = -instance.width / 2 + (
+          style.align === "center" ? instance.width / 2 : style.align === "right" ? instance.width : 0
+        );
         drawWrappedText(
           context,
           resolvedInstanceValue(instance, marker),
           textX,
-          0,
+          -instance.height / 2,
           instance.width,
           instance.height,
           style.fontSize * 1.35
@@ -2694,14 +3792,16 @@
         const x = (text.x / 100) * PAGE_WIDTH;
         const y = (text.y / 100) * PAGE_HEIGHT;
         context.save();
-        context.translate(x, y);
+        context.translate(x + text.width / 2, y + text.height / 2);
         context.rotate((text.rotation * Math.PI) / 180);
         context.fillStyle = text.color;
         context.font = `${text.fontSize}px ${text.fontFamily === "inherit" ? '"Noto Sans Thai","Leelawadee UI",Tahoma,sans-serif' : text.fontFamily}`;
         context.textAlign = text.align;
         context.textBaseline = "top";
-        const textX = text.align === "center" ? text.width / 2 : text.align === "right" ? text.width : 0;
-        drawWrappedText(context, text.value, textX, 0, text.width, text.height, text.fontSize * 1.35);
+        const textX = -text.width / 2 + (
+          text.align === "center" ? text.width / 2 : text.align === "right" ? text.width : 0
+        );
+        drawWrappedText(context, text.value, textX, -text.height / 2, text.width, text.height, text.fontSize * 1.35);
         context.restore();
       });
       return canvas;
@@ -2775,6 +3875,17 @@
     $("#freeTextToolButton").addEventListener("click", activateFreeTextTool);
     $("#duplicateFreeTextButton").addEventListener("click", duplicateFreeText);
     $("#deleteFreeTextButton").addEventListener("click", deleteFreeText);
+    $("#eraseToolButton").addEventListener("click", activateEraseTool);
+    $("#duplicateEraseButton").addEventListener("click", duplicateErase);
+    $("#deleteEraseButton").addEventListener("click", deleteErase);
+    $("#sampleEraseColorButton").addEventListener("click", () => {
+      sampleEraseColor().catch(error => setProjectMessage(`Sample color failed: ${error.message}`, true));
+    });
+    $("#repairToolButton").addEventListener("click", activateRepairPanel);
+    $("#applyRepairButton").addEventListener("click", () => {
+      applyRepair().catch(error => setProjectMessage(`Cleanup failed: ${error.message}`, true));
+    });
+    $("#resetRepairButton").addEventListener("click", resetRepair);
     $("#undoButton").addEventListener("click", undo);
     $("#redoButton").addEventListener("click", redo);
     $("#localFontsButton").addEventListener("click", loadLocalFonts);
@@ -2787,6 +3898,24 @@
     $("#toolbarDesignButton").addEventListener("click", () => setMode("design"));
     $("#toolbarFillButton").addEventListener("click", () => setMode("fill"));
     $("#toolbarExportButton").addEventListener("click", exportPdf);
+    $("#gridButton").addEventListener("click", () => {
+      pushHistory();
+      state.layout.gridEnabled = !state.layout.gridEnabled;
+      markDirty();
+      renderControls();
+      renderBoard();
+    });
+    $("#snapButton").addEventListener("click", () => {
+      pushHistory();
+      state.layout.snapEnabled = !state.layout.snapEnabled;
+      markDirty();
+      renderControls();
+    });
+    $("#guideVButton").addEventListener("click", () => addGuide("vertical"));
+    $("#guideHButton").addEventListener("click", () => addGuide("horizontal"));
+    $("#alignObjectButton").addEventListener("click", () => alignSelectedObject($("#objectAlignSelect").value));
+    $("#spaceHButton").addEventListener("click", () => distributeSelectedType("x"));
+    $("#spaceVButton").addEventListener("click", () => distributeSelectedType("y"));
 
     function captureEditHistory(control) {
       control.addEventListener("focus", () => {
@@ -2802,13 +3931,15 @@
       instanceXInput, instanceYInput, instanceWidthInput, instanceHeightInput,
       instanceRotationInput, instanceAlignInput, freeTextValueInput, freeTextFontInput,
       freeTextFontSizeInput, freeTextColorInput, freeTextXInput, freeTextYInput,
-      freeTextWidthInput, freeTextHeightInput, freeTextRotationInput, freeTextAlignInput
+      freeTextWidthInput, freeTextHeightInput, freeTextRotationInput, freeTextAlignInput,
+      eraseFillInput, eraseOpacityInput, eraseXInput, eraseYInput,
+      eraseWidthInput, eraseHeightInput, eraseRotationInput
     ].forEach(captureEditHistory);
 
     instanceValueInput.addEventListener("input", event => {
       const instance = currentInstance();
       if (!instance) return;
-      instance.overrideValue = event.target.value === "" ? null : event.target.value;
+      instance.overrideValue = event.target.value;
       markDirty();
       renderBoard();
     });
@@ -2838,6 +3969,10 @@
         }
         markDirty();
         renderBoard();
+        if (["x", "y", "width", "height"].includes(property)) {
+          warnDuplicates(instance.markerId);
+          renderMarkerList();
+        }
       });
     });
     instanceColorInput.addEventListener("input", event => {
@@ -2878,6 +4013,33 @@
       input.addEventListener("input", event => updateFreeTextProperty(property, Number(event.target.value) || 0));
     });
 
+    function updateEraseProperty(property, value) {
+      const erase = currentErase();
+      if (!erase) return;
+      if (property === "x" || property === "y") value = Math.min(100, Math.max(0, value));
+      if (property === "width") value = Math.min(PAGE_WIDTH, Math.max(4, value));
+      if (property === "height") value = Math.min(PAGE_HEIGHT, Math.max(4, value));
+      if (property === "rotation") value = Math.min(180, Math.max(-180, value));
+      if (property === "opacity") value = Math.min(1, Math.max(.05, value));
+      erase[property] = value;
+      markDirty();
+      renderBoard();
+    }
+
+    eraseFillInput.addEventListener("input", event => updateEraseProperty("fill", event.target.value));
+    eraseOpacityInput.addEventListener("input", event => {
+      updateEraseProperty("opacity", Math.min(1, Math.max(.05, Number(event.target.value) / 100 || .05)));
+    });
+    [
+      [eraseXInput, "x"],
+      [eraseYInput, "y"],
+      [eraseWidthInput, "width"],
+      [eraseHeightInput, "height"],
+      [eraseRotationInput, "rotation"]
+    ].forEach(([input, property]) => {
+      input.addEventListener("input", event => updateEraseProperty(property, Number(event.target.value) || 0));
+    });
+
     function applyToolbarStyle(property, value) {
       const text = currentFreeText();
       const instance = currentInstance();
@@ -2910,14 +4072,42 @@
     toolbarAlignSelect.addEventListener("change", event => applyToolbarStyle("align", event.target.value));
 
     document.addEventListener("keydown", event => {
-      if (!(event.ctrlKey || event.metaKey)) return;
-      if (event.key.toLowerCase() === "s") {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        if (document.activeElement?.isContentEditable) document.activeElement.blur();
+        deselectObjects();
+        showToast("Selection cleared");
+        return;
+      }
+
+      const commandKey = event.ctrlKey || event.metaKey;
+      const key = event.key.toLowerCase();
+      if (commandKey && key === "s") {
         event.preventDefault();
         saveProject(event.shiftKey);
-      } else if (event.key.toLowerCase() === "z" && !event.shiftKey) {
+        return;
+      }
+      if (isEditableTarget(event.target)) return;
+
+      if (event.key === "Delete") {
+        if (deleteSelectedObject()) event.preventDefault();
+        return;
+      }
+      if (!commandKey) return;
+
+      if (key === "c") {
+        event.preventDefault();
+        copySelectedObject();
+      } else if (key === "v") {
+        event.preventDefault();
+        pasteSelectedObject();
+      } else if (key === "x") {
+        event.preventDefault();
+        cutSelectedObject();
+      } else if (key === "z" && !event.shiftKey) {
         event.preventDefault();
         undo();
-      } else if (event.key.toLowerCase() === "y" || (event.key.toLowerCase() === "z" && event.shiftKey)) {
+      } else if (key === "y" || (key === "z" && event.shiftKey)) {
         event.preventDefault();
         redo();
       }
@@ -2932,6 +4122,16 @@
       event.preventDefault();
       setZoom(state.zoom + (event.deltaY < 0 ? .08 : -.08));
     }, { passive: false });
+
+    stage.addEventListener("pointerdown", event => {
+      if (
+        event.target === stage ||
+        event.target.classList.contains("pages-board") ||
+        event.target.classList.contains("page-wrap")
+      ) {
+        deselectObjects();
+      }
+    });
 
     window.addEventListener("beforeunload", () => {
       [...new Set(state.pages.map(page => page.url).filter(Boolean))].forEach(url => URL.revokeObjectURL(url));
