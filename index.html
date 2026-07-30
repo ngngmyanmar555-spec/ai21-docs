@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Project AI21 — พื้นที่สำหรับเปลี่ยนไอเดียให้เป็น AI ที่ใช้งานได้จริง">
+  <title>Project AI21 — Build what’s next</title>
+  <style>
+    :root {
+      --ink: #171714;
+      --paper: #f3f0e8;
+      --lime: #d9ff63;
+      --violet: #7667ff;
+      --line: rgba(23, 23, 20, .18);
+      --muted: #696961;
+      --max: 1180px;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 84% 10%, rgba(118, 103, 255, .22), transparent 25rem),
+        var(--paper);
+      font-family: "Noto Sans Thai", "Leelawadee UI", system-ui, sans-serif;
+    }
+
+    a { color: inherit; }
+    .wrap { width: min(calc(100% - 40px), var(--max)); margin-inline: auto; }
+
+    header {
+      position: sticky;
+      z-index: 10;
+      top: 0;
+      border-bottom: 1px solid var(--line);
+      background: rgba(243, 240, 232, .82);
+      backdrop-filter: blur(14px);
+    }
+
+    nav {
+      min-height: 72px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+    }
+
+    .brand {
+      font-size: 1.05rem;
+      font-weight: 900;
+      letter-spacing: -.04em;
+      text-decoration: none;
+    }
+
+    .brand span { color: var(--violet); }
+    .nav-links { display: flex; align-items: center; gap: 28px; }
+    .nav-links a { font-size: .92rem; font-weight: 650; text-decoration: none; }
+
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 48px;
+      padding: 0 20px;
+      border: 1px solid var(--ink);
+      border-radius: 999px;
+      background: var(--ink);
+      color: white;
+      font: inherit;
+      font-weight: 800;
+      text-decoration: none;
+      transition: transform .2s ease, box-shadow .2s ease;
+      cursor: pointer;
+    }
+
+    .button:hover { transform: translateY(-2px); box-shadow: 5px 5px 0 var(--violet); }
+    .button.alt { background: transparent; color: var(--ink); }
+
+    .hero {
+      min-height: 760px;
+      padding: 100px 0 70px;
+      display: grid;
+      grid-template-columns: 1.35fr .65fr;
+      align-items: end;
+      gap: 64px;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 30px;
+      font-size: .78rem;
+      font-weight: 900;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+    }
+
+    .eyebrow::before {
+      content: "";
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--violet);
+      box-shadow: 0 0 0 6px rgba(118, 103, 255, .15);
+    }
+
+    h1 {
+      max-width: 850px;
+      margin: 0;
+      font-size: clamp(4.25rem, 10vw, 8.8rem);
+      line-height: .84;
+      letter-spacing: -.085em;
+      font-weight: 950;
+    }
+
+    .highlight {
+      position: relative;
+      z-index: 0;
+      white-space: nowrap;
+    }
+
+    .highlight::after {
+      content: "";
+      position: absolute;
+      z-index: -1;
+      right: -.04em;
+      bottom: .03em;
+      left: -.02em;
+      height: .24em;
+      border-radius: 3px;
+      background: var(--lime);
+      transform: rotate(-1.5deg);
+    }
+
+    .hero-aside { padding-bottom: 10px; }
+    .hero-aside p {
+      margin: 0 0 30px;
+      color: var(--muted);
+      font-size: clamp(1.05rem, 2vw, 1.35rem);
+      line-height: 1.65;
+    }
+    .actions { display: flex; flex-wrap: wrap; gap: 12px; }
+
+    .ticker {
+      overflow: hidden;
+      border-block: 1px solid var(--ink);
+      background: var(--lime);
+      transform: rotate(-1deg) scale(1.02);
+    }
+
+    .ticker-track {
+      width: max-content;
+      padding: 17px 0;
+      display: flex;
+      gap: 44px;
+      animation: marquee 22s linear infinite;
+      font-weight: 900;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+    }
+
+    .ticker-track span::after { content: "✦"; margin-left: 44px; }
+    @keyframes marquee { to { transform: translateX(-50%); } }
+
+    .section { padding: 130px 0; }
+    .section-head {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 40px;
+      margin-bottom: 64px;
+    }
+
+    h2 {
+      margin: 0;
+      font-size: clamp(2.5rem, 6vw, 5.5rem);
+      line-height: .98;
+      letter-spacing: -.065em;
+    }
+
+    .section-head p {
+      align-self: end;
+      max-width: 550px;
+      margin: 0;
+      color: var(--muted);
+      font-size: 1.08rem;
+      line-height: 1.7;
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      border-top: 1px solid var(--ink);
+    }
+
+    .card {
+      min-height: 330px;
+      padding: 32px 28px;
+      border-right: 1px solid var(--ink);
+      display: flex;
+      flex-direction: column;
+      transition: background .25s ease, transform .25s ease;
+    }
+    .card:first-child { border-left: 1px solid var(--ink); }
+    .card:hover { background: white; transform: translateY(-8px); }
+    .card-number { color: var(--violet); font-weight: 900; }
+    .card h3 { margin: auto 0 12px; font-size: 1.7rem; letter-spacing: -.04em; }
+    .card p { margin: 0; color: var(--muted); line-height: 1.65; }
+
+    .cta {
+      margin-bottom: 48px;
+      padding: clamp(40px, 8vw, 88px);
+      border-radius: 32px;
+      background: var(--ink);
+      color: white;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: end;
+      gap: 32px;
+    }
+
+    .cta h2 { max-width: 760px; }
+    .cta .button { background: var(--lime); color: var(--ink); border-color: var(--lime); }
+
+    footer {
+      padding: 34px 0 42px;
+      display: flex;
+      justify-content: space-between;
+      gap: 24px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: .88rem;
+    }
+
+    .reveal { opacity: 0; transform: translateY(22px); transition: .65s ease; }
+    .reveal.visible { opacity: 1; transform: none; }
+
+    @media (max-width: 800px) {
+      .nav-links a:not(.button) { display: none; }
+      .hero { min-height: auto; padding: 88px 0; grid-template-columns: 1fr; gap: 52px; }
+      .section { padding: 90px 0; }
+      .section-head, .cta { grid-template-columns: 1fr; }
+      .cards { grid-template-columns: 1fr; }
+      .card, .card:first-child { min-height: 250px; border-left: 1px solid var(--ink); border-bottom: 1px solid var(--ink); }
+      .cta { align-items: start; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      * { scroll-behavior: auto !important; animation-duration: .01ms !important; }
+      .reveal { opacity: 1; transform: none; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <nav class="wrap" aria-label="เมนูหลัก">
+      <a class="brand" href="#">PROJECT <span>AI21</span></a>
+      <div class="nav-links">
+        <a href="#about">แนวคิด</a>
+        <a href="#capabilities">ความสามารถ</a>
+        <a class="button" href="#start">เริ่มโปรเจกต์</a>
+      </div>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero wrap" id="about">
+      <div>
+        <div class="eyebrow">Intelligence, made useful</div>
+        <h1>คิดให้ไกล<br>สร้างให้<span class="highlight">จริง</span></h1>
+      </div>
+      <div class="hero-aside reveal">
+        <p>Project AI21 คือพื้นที่ทดลอง สร้าง และต่อยอดแนวคิดด้วย AI — จากคำถามแรก ไปจนถึงผลิตภัณฑ์ที่พร้อมใช้งาน</p>
+        <div class="actions">
+          <a class="button" href="#capabilities">สำรวจแนวทาง ↘</a>
+          <a class="button alt" href="#start">คุยกับเรา</a>
+        </div>
+      </div>
+    </section>
+
+    <div class="ticker" aria-hidden="true">
+      <div class="ticker-track">
+        <span>Ideas into impact</span><span>Human × AI</span><span>Build the future</span>
+        <span>Ideas into impact</span><span>Human × AI</span><span>Build the future</span>
+      </div>
+    </div>
+
+    <section class="section wrap" id="capabilities">
+      <div class="section-head reveal">
+        <h2>หนึ่งไอเดีย<br>ไปได้ไกลแค่ไหน?</h2>
+        <p>เราเชื่อว่า AI ที่ดีไม่ใช่แค่ฉลาด แต่ต้องเข้าใจบริบท ใช้งานง่าย และสร้างผลลัพธ์ที่วัดได้จริง</p>
+      </div>
+      <div class="cards">
+        <article class="card reveal">
+          <span class="card-number">01 / DISCOVER</span>
+          <h3>หาโจทย์ที่ใช่</h3>
+          <p>สำรวจปัญหา ข้อมูล และโอกาส เพื่อวางทิศทางที่ชัดเจนก่อนเริ่มสร้าง</p>
+        </article>
+        <article class="card reveal">
+          <span class="card-number">02 / CREATE</span>
+          <h3>ทดลองให้ไว</h3>
+          <p>เปลี่ยนแนวคิดเป็นต้นแบบ ทดสอบกับผู้ใช้ และเรียนรู้จากของจริง</p>
+        </article>
+        <article class="card reveal">
+          <span class="card-number">03 / SCALE</span>
+          <h3>เติบโตอย่างมั่นใจ</h3>
+          <p>ออกแบบระบบที่พร้อมขยาย พร้อมมาตรฐานด้านความปลอดภัยและความรับผิดชอบ</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="wrap" id="start">
+      <div class="cta reveal">
+        <h2>มีไอเดียแล้ว?<br>มาสร้างมันด้วยกัน</h2>
+        <a class="button" href="mailto:hello@ai21.project">เริ่มบทสนทนา →</a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="wrap">
+    <span>© <span id="year"></span> Project AI21</span>
+    <span>Made for what’s next.</span>
+  </footer>
+
+  <script>
+    document.getElementById("year").textContent = new Date().getFullYear();
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add("visible");
+          observer.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.14 });
+
+    document.querySelectorAll(".reveal").forEach((element) => observer.observe(element));
+  </script>
+</body>
+</html>
+
